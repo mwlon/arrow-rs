@@ -291,6 +291,7 @@ pub enum Encoding {
     /// This itself does not reduce the size of the data but can lead to better compression
     /// afterwards.
     BYTE_STREAM_SPLIT,
+    PCO,
 }
 
 impl FromStr for Encoding {
@@ -309,6 +310,7 @@ impl FromStr for Encoding {
             "DELTA_BYTE_ARRAY" | "delta_byte_array" => Ok(Encoding::DELTA_BYTE_ARRAY),
             "RLE_DICTIONARY" | "rle_dictionary" => Ok(Encoding::RLE_DICTIONARY),
             "BYTE_STREAM_SPLIT" | "byte_stream_split" => Ok(Encoding::BYTE_STREAM_SPLIT),
+            "PCO" => Ok(Encoding::PCO),
             _ => Err(general_err!("unknown encoding: {}", s)),
         }
     }
@@ -916,6 +918,7 @@ impl TryFrom<parquet::Encoding> for Encoding {
             parquet::Encoding::DELTA_BYTE_ARRAY => Encoding::DELTA_BYTE_ARRAY,
             parquet::Encoding::RLE_DICTIONARY => Encoding::RLE_DICTIONARY,
             parquet::Encoding::BYTE_STREAM_SPLIT => Encoding::BYTE_STREAM_SPLIT,
+            parquet::Encoding::PCO => Encoding::PCO,
             _ => return Err(general_err!("unexpected parquet encoding: {}", value.0)),
         })
     }
@@ -933,6 +936,7 @@ impl From<Encoding> for parquet::Encoding {
             Encoding::DELTA_BYTE_ARRAY => parquet::Encoding::DELTA_BYTE_ARRAY,
             Encoding::RLE_DICTIONARY => parquet::Encoding::RLE_DICTIONARY,
             Encoding::BYTE_STREAM_SPLIT => parquet::Encoding::BYTE_STREAM_SPLIT,
+            Encoding::PCO => parquet::Encoding::PCO,
         }
     }
 }

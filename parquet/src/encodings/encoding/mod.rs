@@ -27,6 +27,9 @@ use crate::errors::{ParquetError, Result};
 use crate::util::bit_util::{self, num_required_bits, BitWriter};
 
 use bytes::Bytes;
+use pco::{ChunkConfig, PagingSpec};
+use pco::data_types::NumberLike;
+use pco::wrapped::FileCompressor;
 pub use dict_encoder::DictEncoder;
 
 mod dict_encoder;
@@ -85,6 +88,7 @@ pub fn get_encoder<T: DataType>(encoding: Encoding) -> Result<Box<dyn Encoder<T>
         Encoding::DELTA_BINARY_PACKED => Box::new(DeltaBitPackEncoder::new()),
         Encoding::DELTA_LENGTH_BYTE_ARRAY => Box::new(DeltaLengthByteArrayEncoder::new()),
         Encoding::DELTA_BYTE_ARRAY => Box::new(DeltaByteArrayEncoder::new()),
+        Encoding::PCO => Box::new(PcoEncoder::new()),
         e => return Err(nyi_err!("Encoding {} is not supported", e)),
     };
     Ok(encoder)
@@ -714,6 +718,45 @@ impl<T: DataType> Encoder<T> for DeltaByteArrayEncoder<T> {
                 "DeltaByteArrayEncoder only supports ByteArrayType and FixedLenByteArrayType"
             ),
         }
+    }
+}
+
+#[derive(Default)]
+pub struct PcoEncoder {
+    data: Vec<u8>,
+}
+
+impl PcoEncoder {
+    pub fn new() -> Self {
+        Default::default()
+    }
+}
+
+impl<T: DataType> Encoder<T> for PcoEncoder {
+    fn put(&mut self, values: &[T::T]) -> Result<()> {
+        let values: &[T::Pco] = T::transmute_to_pco(values);
+        let fc = FileCompressor::default();
+        fc.write_header(&mut self.data)?;
+        let paging_spec = PagingSpec::ExactPageSizes(vec![values.len()]);
+        let cc = fc.chunk_compressor(values, &ChunkConfig::default().with_paging_spec(paging_spec))?;
+        cc.write_chunk_meta(&mut self.data)?;
+        cc.write_page(0, &mut self.data)?;
+        Ok(())
+    }
+
+    fn encoding(&self) -> Encoding {
+        Encoding::PCO
+    }
+
+    fn estimated_data_encoded_size(&self) -> usize {
+        self.data.len()
+    }
+
+    fn flush_buffer(&mut self) -> Result<Bytes> {
+        let mut tmp = Vec::new();
+        std::mem::swap(&mut tmp, &mut self.data);
+        let bytes = Bytes::from(tmp);
+        Ok(bytes)
     }
 }
 

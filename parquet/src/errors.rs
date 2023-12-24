@@ -19,6 +19,7 @@
 
 use std::error::Error;
 use std::{cell, io, result, str};
+use pco::errors::PcoError;
 
 #[cfg(feature = "arrow")]
 use arrow_schema::ArrowError;
@@ -71,6 +72,12 @@ impl Error for ParquetError {
             ParquetError::External(e) => Some(e.as_ref()),
             _ => None,
         }
+    }
+}
+
+impl From<PcoError> for ParquetError {
+    fn from(e: PcoError) -> Self {
+        ParquetError::External(Box::new(e))
     }
 }
 

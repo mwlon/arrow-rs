@@ -21,6 +21,9 @@ use bytes::Bytes;
 use num::traits::WrappingAdd;
 use num::FromPrimitive;
 use std::{cmp, marker::PhantomData, mem};
+use pco::data_types::NumberLike;
+use pco::FULL_BATCH_N;
+use pco::wrapped::{ChunkCompressor, ChunkDecompressor, FileDecompressor, PageDecompressor};
 
 use super::rle::RleDecoder;
 
@@ -86,6 +89,7 @@ pub(crate) mod private {
         ) -> Result<Box<dyn Decoder<T>>> {
             match encoding {
                 Encoding::DELTA_BINARY_PACKED => Ok(Box::new(DeltaBitPackDecoder::new())),
+                Encoding::PCO => Ok(Box::new(PcoDecoder::new())),
                 _ => get_decoder_default(descr, encoding),
             }
         }
@@ -98,13 +102,28 @@ pub(crate) mod private {
         ) -> Result<Box<dyn Decoder<T>>> {
             match encoding {
                 Encoding::DELTA_BINARY_PACKED => Ok(Box::new(DeltaBitPackDecoder::new())),
+                Encoding::PCO => Ok(Box::new(PcoDecoder::new())),
                 _ => get_decoder_default(descr, encoding),
             }
         }
     }
 
-    impl GetDecoder for f32 {}
-    impl GetDecoder for f64 {}
+    impl GetDecoder for f32 {
+        fn get_decoder<T: DataType<T=Self>>(descr: ColumnDescPtr, encoding: Encoding) -> Result<Box<dyn Decoder<T>>> {
+            match encoding {
+                Encoding::PCO => Ok(Box::new(PcoDecoder::new())),
+                _ => get_decoder_default(descr, encoding),
+            }
+        }
+    }
+    impl GetDecoder for f64 {
+        fn get_decoder<T: DataType<T=Self>>(descr: ColumnDescPtr, encoding: Encoding) -> Result<Box<dyn Decoder<T>>> {
+            match encoding {
+                Encoding::PCO => Ok(Box::new(PcoDecoder::new())),
+                _ => get_decoder_default(descr, encoding),
+            }
+        }
+    }
 
     impl GetDecoder for ByteArray {
         fn get_decoder<T: DataType<T = Self>>(
@@ -425,7 +444,7 @@ impl<T: DataType> Decoder<T> for RleValueDecoder<T> {
         let data_size = bit_util::read_num_bytes::<i32>(I32_SIZE, data.as_ref()) as usize;
         self.decoder = RleDecoder::new(1);
         self.decoder
-            .set_data(data.slice(I32_SIZE..I32_SIZE + data_size));
+          .set_data(data.slice(I32_SIZE..I32_SIZE + data_size));
         self.values_left = num_values;
         Ok(())
     }
@@ -497,8 +516,8 @@ pub struct DeltaBitPackDecoder<T: DataType> {
 }
 
 impl<T: DataType> Default for DeltaBitPackDecoder<T>
-where
-    T::T: Default + FromPrimitive + WrappingAdd + Copy,
+    where
+      T::T: Default + FromPrimitive + WrappingAdd + Copy,
 {
     fn default() -> Self {
         Self::new()
@@ -506,8 +525,8 @@ where
 }
 
 impl<T: DataType> DeltaBitPackDecoder<T>
-where
-    T::T: Default + FromPrimitive + WrappingAdd + Copy,
+    where
+      T::T: Default + FromPrimitive + WrappingAdd + Copy,
 {
     /// Creates new delta bit packed decoder.
     pub fn new() -> Self {
@@ -546,12 +565,12 @@ where
     #[inline]
     fn next_block(&mut self) -> Result<()> {
         let min_delta = self
-            .bit_reader
-            .get_zigzag_vlq_int()
-            .ok_or_else(|| eof_err!("Not enough data to decode 'min_delta'"))?;
+          .bit_reader
+          .get_zigzag_vlq_int()
+          .ok_or_else(|| eof_err!("Not enough data to decode 'min_delta'"))?;
 
         self.min_delta = T::T::from_i64(min_delta)
-            .ok_or_else(|| general_err!("'min_delta' too large"))?;
+          .ok_or_else(|| general_err!("'min_delta' too large"))?;
 
         self.mini_block_bit_widths.clear();
         self.bit_reader.get_aligned_bytes(
@@ -598,8 +617,8 @@ where
 }
 
 impl<T: DataType> Decoder<T> for DeltaBitPackDecoder<T>
-where
-    T::T: Default + FromPrimitive + WrappingAdd + Copy,
+    where
+      T::T: Default + FromPrimitive + WrappingAdd + Copy,
 {
     // # of total values is derived from encoding
     #[inline]
@@ -609,34 +628,34 @@ where
 
         // Read header information
         self.block_size = self
-            .bit_reader
-            .get_vlq_int()
-            .ok_or_else(|| eof_err!("Not enough data to decode 'block_size'"))?
-            .try_into()
-            .map_err(|_| general_err!("invalid 'block_size'"))?;
+          .bit_reader
+          .get_vlq_int()
+          .ok_or_else(|| eof_err!("Not enough data to decode 'block_size'"))?
+          .try_into()
+          .map_err(|_| general_err!("invalid 'block_size'"))?;
 
         self.mini_blocks_per_block = self
-            .bit_reader
-            .get_vlq_int()
-            .ok_or_else(|| eof_err!("Not enough data to decode 'mini_blocks_per_block'"))?
-            .try_into()
-            .map_err(|_| general_err!("invalid 'mini_blocks_per_block'"))?;
+          .bit_reader
+          .get_vlq_int()
+          .ok_or_else(|| eof_err!("Not enough data to decode 'mini_blocks_per_block'"))?
+          .try_into()
+          .map_err(|_| general_err!("invalid 'mini_blocks_per_block'"))?;
 
         self.values_left = self
-            .bit_reader
-            .get_vlq_int()
-            .ok_or_else(|| eof_err!("Not enough data to decode 'values_left'"))?
-            .try_into()
-            .map_err(|_| general_err!("invalid 'values_left'"))?;
+          .bit_reader
+          .get_vlq_int()
+          .ok_or_else(|| eof_err!("Not enough data to decode 'values_left'"))?
+          .try_into()
+          .map_err(|_| general_err!("invalid 'values_left'"))?;
 
         let first_value = self
-            .bit_reader
-            .get_zigzag_vlq_int()
-            .ok_or_else(|| eof_err!("Not enough data to decode 'first_value'"))?;
+          .bit_reader
+          .get_zigzag_vlq_int()
+          .ok_or_else(|| eof_err!("Not enough data to decode 'first_value'"))?;
 
         self.first_value = Some(
             T::T::from_i64(first_value)
-                .ok_or_else(|| general_err!("first value too large"))?,
+              .ok_or_else(|| general_err!("first value too large"))?,
         );
 
         if self.block_size % 128 != 0 {
@@ -694,8 +713,8 @@ where
             let batch_to_read = self.mini_block_remaining.min(to_read - read);
 
             let batch_read = self
-                .bit_reader
-                .get_batch(&mut buffer[read..read + batch_to_read], bit_width);
+              .bit_reader
+              .get_batch(&mut buffer[read..read + batch_to_read], bit_width);
 
             if batch_read != batch_to_read {
                 return Err(general_err!(
@@ -712,8 +731,8 @@ where
                 // e.g. i64::MAX - i64::MIN, so we use `wrapping_add` to "overflow" again and
                 // restore original value.
                 *v = v
-                    .wrapping_add(&self.min_delta)
-                    .wrapping_add(&self.last_value);
+                  .wrapping_add(&self.min_delta)
+                  .wrapping_add(&self.last_value);
 
                 self.last_value = *v;
             }
@@ -765,8 +784,8 @@ where
             let mini_block_should_skip = mini_block_to_skip;
 
             let skip_count = self
-                .bit_reader
-                .get_batch(&mut skip_buffer[0..mini_block_to_skip], bit_width);
+              .bit_reader
+              .get_batch(&mut skip_buffer[0..mini_block_to_skip], bit_width);
 
             if skip_count != mini_block_to_skip {
                 return Err(general_err!(
@@ -778,8 +797,8 @@ where
 
             for v in &mut skip_buffer[0..skip_count] {
                 *v = v
-                    .wrapping_add(&self.min_delta)
-                    .wrapping_add(&self.last_value);
+                  .wrapping_add(&self.min_delta)
+                  .wrapping_add(&self.last_value);
 
                 self.last_value = *v;
             }
@@ -876,9 +895,9 @@ impl<T: DataType> Decoder<T> for DeltaLengthByteArrayDecoder<T> {
                     let len = self.lengths[self.current_idx] as usize;
 
                     item.as_mut_any()
-                        .downcast_mut::<ByteArray>()
-                        .unwrap()
-                        .set_data(data.slice(self.offset..self.offset + len));
+                      .downcast_mut::<ByteArray>()
+                      .unwrap()
+                      .set_data(data.slice(self.offset..self.offset + len));
 
                     self.offset += len;
                     self.current_idx += 1;
@@ -907,9 +926,9 @@ impl<T: DataType> Decoder<T> for DeltaLengthByteArrayDecoder<T> {
                 let num_values = cmp::min(num_values, self.num_values);
 
                 let next_offset: i32 = self.lengths
-                    [self.current_idx..self.current_idx + num_values]
-                    .iter()
-                    .sum();
+                  [self.current_idx..self.current_idx + num_values]
+                  .iter()
+                  .sum();
 
                 self.current_idx += num_values;
                 self.offset += next_offset as usize;
@@ -987,7 +1006,7 @@ impl<T: DataType> Decoder<T> for DeltaByteArrayDecoder<T> {
 
                 let mut suffix_decoder = DeltaLengthByteArrayDecoder::new();
                 suffix_decoder
-                    .set_data(data.slice(prefix_len_decoder.get_offset()..), num_values)?;
+                  .set_data(data.slice(prefix_len_decoder.get_offset()..), num_values)?;
                 self.suffix_decoder = Some(suffix_decoder);
                 self.num_values = num_prefixes;
                 self.current_idx = 0;
@@ -1026,15 +1045,15 @@ impl<T: DataType> Decoder<T> for DeltaByteArrayDecoder<T> {
 
                     match ty {
                         Type::BYTE_ARRAY => item
-                            .as_mut_any()
-                            .downcast_mut::<ByteArray>()
-                            .unwrap()
-                            .set_data(data),
+                          .as_mut_any()
+                          .downcast_mut::<ByteArray>()
+                          .unwrap()
+                          .set_data(data),
                         Type::FIXED_LEN_BYTE_ARRAY => item
-                            .as_mut_any()
-                            .downcast_mut::<FixedLenByteArray>()
-                            .unwrap()
-                            .set_data(data),
+                          .as_mut_any()
+                          .downcast_mut::<FixedLenByteArray>()
+                          .unwrap()
+                          .set_data(data),
                         _ => unreachable!(),
                     };
 
@@ -1066,6 +1085,62 @@ impl<T: DataType> Decoder<T> for DeltaByteArrayDecoder<T> {
         self.get(&mut buffer)
     }
 }
+
+#[derive(Default)]
+pub struct PcoDecoder<T: NumberLike> {
+    data: Bytes,
+    n: usize,
+    valid: bool,
+    phantom: PhantomData<T>,
+}
+
+impl<T: NumberLike> PcoDecoder<T> {
+    fn new() -> Self {
+        Default::default()
+    }
+}
+
+impl<T: NumberLike, D: DataType<T=T>> Decoder<D> for PcoDecoder<T> {
+    fn set_data(&mut self, data: Bytes, num_values: usize) -> Result<()> {
+        self.data = data;
+        self.n = num_values;
+        self.valid = true;
+        Ok(())
+    }
+
+    fn get(&mut self, buffer: &mut [T]) -> Result<usize> {
+        if !self.valid {
+            return Err(general_err!("cannot pco decode twice in this shoddy impl"))
+        }
+
+        let mut data = self.data.as_ref();
+        let (fd, rest) = FileDecompressor::new(data)?;
+        let (cd, rest) = fd.chunk_decompressor(rest)?;
+        let mut pd = cd.page_decompressor(rest, self.n)?;
+        let progress = pd.decompress(buffer)?;
+        self.valid = false;
+        Ok(progress.n_processed)
+    }
+
+    fn values_left(&self) -> usize {
+        if self.valid {
+            self.n
+        } else {
+            0
+        }
+    }
+
+    fn encoding(&self) -> Encoding {
+        Encoding::PCO
+    }
+
+    fn skip(&mut self, num_values: usize) -> Result<usize> {
+        let mut buffer = vec![T::default(); num_values];
+        <Self as Decoder<D>>::get(self, &mut buffer)
+    }
+}
+
+
 
 #[cfg(test)]
 mod tests {
@@ -1691,12 +1766,12 @@ mod tests {
         let block2 = vec![0xFF; 24];
 
         let data: Vec<u8> = header
-            .into_iter()
-            .chain(block1_header)
-            .chain(block1)
-            .chain(block2_header)
-            .chain(block2)
-            .collect();
+          .into_iter()
+          .chain(block1_header)
+          .chain(block1)
+          .chain(block2_header)
+          .chain(block2)
+          .collect();
 
         let length = data.len();
 
@@ -1797,13 +1872,13 @@ mod tests {
 
         let mut result = vec![T::T::default(); expected.len()];
         decoder
-            .set_data(bytes, expected.len())
-            .expect("ok to set data");
+          .set_data(bytes, expected.len())
+          .expect("ok to set data");
         let mut result_num_values = 0;
         while decoder.values_left() > 0 {
             result_num_values += decoder
-                .get(&mut result[result_num_values..])
-                .expect("ok to decode");
+              .get(&mut result[result_num_values..])
+              .expect("ok to decode");
         }
         assert_eq!(result_num_values, expected.len());
         assert_eq!(result, expected);
@@ -1866,9 +1941,9 @@ mod tests {
     // Creates test column descriptor.
     fn create_test_col_desc_ptr(type_len: i32, t: Type) -> ColumnDescPtr {
         let ty = SchemaType::primitive_type_builder("t", t)
-            .with_length(type_len)
-            .build()
-            .unwrap();
+          .with_length(type_len)
+          .build()
+          .unwrap();
         Arc::new(ColumnDescriptor::new(
             Arc::new(ty),
             0,
