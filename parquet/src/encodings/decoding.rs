@@ -22,8 +22,8 @@ use num::traits::WrappingAdd;
 use num::FromPrimitive;
 use std::{cmp, marker::PhantomData, mem};
 use pco::data_types::NumberLike;
-use pco::FULL_BATCH_N;
-use pco::wrapped::{ChunkCompressor, ChunkDecompressor, FileDecompressor, PageDecompressor};
+
+use pco::wrapped::{FileDecompressor};
 
 use super::rle::RleDecoder;
 
@@ -1113,7 +1113,7 @@ impl<T: NumberLike, D: DataType<T=T>> Decoder<D> for PcoDecoder<T> {
             return Err(general_err!("cannot pco decode twice in this shoddy impl"))
         }
 
-        let mut data = self.data.as_ref();
+        let data = self.data.as_ref();
         let (fd, rest) = FileDecompressor::new(data)?;
         let (cd, rest) = fd.chunk_decompressor(rest)?;
         let mut pd = cd.page_decompressor(rest, self.n)?;

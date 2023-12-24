@@ -17,9 +17,9 @@
 
 //! Common Parquet errors and macros.
 
+use pco::errors::PcoError;
 use std::error::Error;
 use std::{cell, io, result, str};
-use pco::errors::PcoError;
 
 #[cfg(feature = "arrow")]
 use arrow_schema::ArrowError;

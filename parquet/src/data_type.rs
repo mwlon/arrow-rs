@@ -19,18 +19,18 @@
 //! representations.
 use bytes::Bytes;
 use half::f16;
+use pco::data_types::NumberLike;
 use std::cmp::Ordering;
+use std::convert;
 use std::fmt;
 use std::mem;
 use std::ops::{Deref, DerefMut};
 use std::str::from_utf8;
-use std::convert;
-use pco::data_types::NumberLike;
 
 use crate::basic::Type;
 use crate::column::reader::{ColumnReader, ColumnReaderImpl};
 use crate::column::writer::{ColumnWriter, ColumnWriterImpl};
-use crate::encodings::encoding::PcoEncoder;
+
 use crate::errors::{ParquetError, Result};
 use crate::util::bit_util::FromBytes;
 
@@ -1173,9 +1173,33 @@ macro_rules! make_type {
 
 // Generate struct definitions for all physical types
 
-make_type!(BoolType, BoolColumnReader, BoolColumnWriter, bool, 1, i32, |_| panic!("cannot use pco encoding"));
-make_type!(Int32Type, Int32ColumnReader, Int32ColumnWriter, i32, 4, i32, convert::identity);
-make_type!(Int64Type, Int64ColumnReader, Int64ColumnWriter, i64, 8, i64, convert::identity);
+make_type!(
+    BoolType,
+    BoolColumnReader,
+    BoolColumnWriter,
+    bool,
+    1,
+    i32,
+    |_| panic!("cannot use pco encoding")
+);
+make_type!(
+    Int32Type,
+    Int32ColumnReader,
+    Int32ColumnWriter,
+    i32,
+    4,
+    i32,
+    convert::identity
+);
+make_type!(
+    Int64Type,
+    Int64ColumnReader,
+    Int64ColumnWriter,
+    i64,
+    8,
+    i64,
+    convert::identity
+);
 make_type!(
     Int96Type,
     Int96ColumnReader,
@@ -1185,8 +1209,24 @@ make_type!(
     i32,
     |_| panic!("cannot use pco encoding")
 );
-make_type!(FloatType, FloatColumnReader, FloatColumnWriter, f32, 4, f32, convert::identity);
-make_type!(DoubleType, DoubleColumnReader, DoubleColumnWriter, f64, 8, f64, convert::identity);
+make_type!(
+    FloatType,
+    FloatColumnReader,
+    FloatColumnWriter,
+    f32,
+    4,
+    f32,
+    convert::identity
+);
+make_type!(
+    DoubleType,
+    DoubleColumnReader,
+    DoubleColumnWriter,
+    f64,
+    8,
+    f64,
+    convert::identity
+);
 make_type!(
     ByteArrayType,
     ByteArrayColumnReader,

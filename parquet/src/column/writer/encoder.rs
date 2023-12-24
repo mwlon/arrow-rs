@@ -188,8 +188,8 @@ impl<T: DataType> ColumnValueEncoder for ColumnValueEncoderImpl<T> {
 
         // Set either main encoder or fallback encoder.
         let encoding = props
-          .encoding(descr.path())
-          .unwrap_or_else(|| fallback_encoding(T::get_physical_type(), props));
+            .encoding(descr.path())
+            .unwrap_or_else(|| fallback_encoding(T::get_physical_type(), props));
         let encoder = get_encoder(encoding)?;
 
         let statistics_enabled = props.statistics_enabled(descr.path());

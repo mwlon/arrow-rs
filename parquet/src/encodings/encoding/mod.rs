@@ -28,7 +28,7 @@ use crate::util::bit_util::{self, num_required_bits, BitWriter};
 
 use bytes::Bytes;
 use pco::{ChunkConfig, PagingSpec};
-use pco::data_types::NumberLike;
+
 use pco::wrapped::FileCompressor;
 pub use dict_encoder::DictEncoder;
 
