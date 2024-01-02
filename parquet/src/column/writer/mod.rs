@@ -1178,12 +1178,8 @@ trait EncodingWriteSupport {
 fn fallback_encoding(kind: Type, props: &WriterProperties) -> Encoding {
     match (kind, props.writer_version()) {
         (Type::BOOLEAN, WriterVersion::PARQUET_2_0) => Encoding::RLE,
-        // (Type::INT32, WriterVersion::PARQUET_2_0) => Encoding::DELTA_BINARY_PACKED,
-        // (Type::INT64, WriterVersion::PARQUET_2_0) => Encoding::DELTA_BINARY_PACKED,
-        (Type::INT32, WriterVersion::PARQUET_2_0) => Encoding::PCO,
-        (Type::INT64, WriterVersion::PARQUET_2_0) => Encoding::PCO,
-        (Type::FLOAT, WriterVersion::PARQUET_2_0) => Encoding::PCO,
-        (Type::DOUBLE, WriterVersion::PARQUET_2_0) => Encoding::PCO,
+        (Type::INT32, WriterVersion::PARQUET_2_0) => Encoding::DELTA_BINARY_PACKED,
+        (Type::INT64, WriterVersion::PARQUET_2_0) => Encoding::DELTA_BINARY_PACKED,
         (Type::BYTE_ARRAY, WriterVersion::PARQUET_2_0) => Encoding::DELTA_BYTE_ARRAY,
         (Type::FIXED_LEN_BYTE_ARRAY, WriterVersion::PARQUET_2_0) => Encoding::DELTA_BYTE_ARRAY,
         _ => Encoding::PLAIN,
