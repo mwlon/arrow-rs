@@ -19,7 +19,9 @@
 //! representations.
 use bytes::Bytes;
 use half::f16;
+use pco::data_types::NumberLike;
 use std::cmp::Ordering;
+use std::convert;
 use std::fmt;
 use std::mem;
 use std::ops::{Deref, DerefMut};
@@ -28,6 +30,7 @@ use std::str::from_utf8;
 use crate::basic::Type;
 use crate::column::reader::{ColumnReader, ColumnReaderImpl};
 use crate::column::writer::{ColumnWriter, ColumnWriterImpl};
+
 use crate::errors::{ParquetError, Result};
 use crate::util::bit_util::FromBytes;
 
@@ -1062,6 +1065,7 @@ pub(crate) mod private {
 /// presentation.
 pub trait DataType: 'static + Send {
     type T: private::ParquetValueType;
+    type Pco: NumberLike;
 
     /// Returns Parquet physical type.
     fn get_physical_type() -> Type {
@@ -1090,6 +1094,9 @@ pub trait DataType: 'static + Send {
     ) -> Option<&'a mut ColumnWriterImpl<'b, Self>>
     where
         Self: Sized;
+
+    fn transmute_to_pco(slice: &[Self::T]) -> &[Self::Pco];
+    fn transmute_to_pco_mut(slice: &mut [Self::T]) -> &mut [Self::Pco];
 }
 
 // Workaround bug in specialization
@@ -1107,12 +1114,13 @@ where
 }
 
 macro_rules! make_type {
-    ($name:ident, $reader_ident: ident, $writer_ident: ident, $native_ty:ty, $size:expr) => {
+    ($name:ident, $reader_ident: ident, $writer_ident: ident, $native_ty:ty, $size:expr, $pco:ty, $transmute_fn:expr) => {
         #[derive(Clone)]
         pub struct $name {}
 
         impl DataType for $name {
             type T = $native_ty;
+            type Pco = $pco;
 
             fn get_type_size() -> usize {
                 $size
@@ -1151,37 +1159,91 @@ macro_rules! make_type {
                     _ => None,
                 }
             }
+
+            fn transmute_to_pco(slice: &[Self::T]) -> &[Self::Pco] {
+                $transmute_fn(slice)
+            }
+
+            fn transmute_to_pco_mut(slice: &mut [Self::T]) -> &mut [Self::Pco] {
+                $transmute_fn(slice)
+            }
         }
     };
 }
 
 // Generate struct definitions for all physical types
 
-make_type!(BoolType, BoolColumnReader, BoolColumnWriter, bool, 1);
-make_type!(Int32Type, Int32ColumnReader, Int32ColumnWriter, i32, 4);
-make_type!(Int64Type, Int64ColumnReader, Int64ColumnWriter, i64, 8);
+make_type!(
+    BoolType,
+    BoolColumnReader,
+    BoolColumnWriter,
+    bool,
+    1,
+    i32,
+    |_| panic!("cannot use pco encoding")
+);
+make_type!(
+    Int32Type,
+    Int32ColumnReader,
+    Int32ColumnWriter,
+    i32,
+    4,
+    i32,
+    convert::identity
+);
+make_type!(
+    Int64Type,
+    Int64ColumnReader,
+    Int64ColumnWriter,
+    i64,
+    8,
+    i64,
+    convert::identity
+);
 make_type!(
     Int96Type,
     Int96ColumnReader,
     Int96ColumnWriter,
     Int96,
-    mem::size_of::<Int96>()
+    mem::size_of::<Int96>(),
+    i32,
+    |_| panic!("cannot use pco encoding")
 );
-make_type!(FloatType, FloatColumnReader, FloatColumnWriter, f32, 4);
-make_type!(DoubleType, DoubleColumnReader, DoubleColumnWriter, f64, 8);
+make_type!(
+    FloatType,
+    FloatColumnReader,
+    FloatColumnWriter,
+    f32,
+    4,
+    f32,
+    convert::identity
+);
+make_type!(
+    DoubleType,
+    DoubleColumnReader,
+    DoubleColumnWriter,
+    f64,
+    8,
+    f64,
+    convert::identity
+);
 make_type!(
     ByteArrayType,
     ByteArrayColumnReader,
     ByteArrayColumnWriter,
     ByteArray,
-    mem::size_of::<ByteArray>()
+    mem::size_of::<ByteArray>(),
+    i32,
+    |_| panic!("cannot use pco encoding")
 );
 make_type!(
     FixedLenByteArrayType,
     FixedLenByteArrayColumnReader,
     FixedLenByteArrayColumnWriter,
     FixedLenByteArray,
-    mem::size_of::<FixedLenByteArray>()
+    mem::size_of::<FixedLenByteArray>(),
+    i32,
+    |_| panic!("cannot use pco encoding")
 );
 
 impl AsRef<[u8]> for ByteArray {

@@ -384,6 +384,7 @@ impl Encoding {
   /// This itself does not reduce the size of the data but can lead to better compression
   /// afterwards.
   pub const BYTE_STREAM_SPLIT: Encoding = Encoding(9);
+  pub const PCO: Encoding = Encoding(10);
   pub const ENUM_VALUES: &'static [Self] = &[
     Self::PLAIN,
     Self::PLAIN_DICTIONARY,
@@ -394,6 +395,7 @@ impl Encoding {
     Self::DELTA_BYTE_ARRAY,
     Self::RLE_DICTIONARY,
     Self::BYTE_STREAM_SPLIT,
+    Self::PCO,
   ];
 }
 
@@ -420,6 +422,7 @@ impl From<i32> for Encoding {
       7 => Encoding::DELTA_BYTE_ARRAY,
       8 => Encoding::RLE_DICTIONARY,
       9 => Encoding::BYTE_STREAM_SPLIT,
+      10 => Encoding::PCO,
       _ => Encoding(i)
     }
   }

@@ -17,6 +17,7 @@
 
 //! Common Parquet errors and macros.
 
+use pco::errors::PcoError;
 use std::error::Error;
 use std::{cell, io, result, str};
 
@@ -71,6 +72,12 @@ impl Error for ParquetError {
             ParquetError::External(e) => Some(e.as_ref()),
             _ => None,
         }
+    }
+}
+
+impl From<PcoError> for ParquetError {
+    fn from(e: PcoError) -> Self {
+        ParquetError::External(Box::new(e))
     }
 }
 

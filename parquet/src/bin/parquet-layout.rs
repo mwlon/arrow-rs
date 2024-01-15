@@ -206,6 +206,7 @@ fn encoding(encoding: parquet::format::Encoding) -> &'static str {
         Ok(Encoding::DELTA_BYTE_ARRAY) => "delta_byte_array",
         Ok(Encoding::RLE_DICTIONARY) => "rle_dictionary",
         Ok(Encoding::BYTE_STREAM_SPLIT) => "byte_stream_split",
+        Ok(Encoding::PCO) => "pco",
         Err(_) => "unknown",
     }
 }
